@@ -28,7 +28,7 @@ def pipeline_mongo():
     
     @task_group(group_id='processing_group')
     def processing_group():
-
+        #treating dates as strings
         dtypes_string_dates={'reviewId': "string", 
                 'userName': "string", 
                 'userImage': "string", 
@@ -43,13 +43,8 @@ def pipeline_mongo():
 
         @task
         def null_replace():
-
             # date_cols = ['at', 'repliedAt']
-
-            try:
-                df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes_string_dates) #type:ignore
-            except UnicodeDecodeError:
-                df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes_string_dates, encoding='latin-1') #type:ignore
+            df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes_string_dates) #type:ignore
 
             df.fillna('-', inplace=True)
 
@@ -63,11 +58,8 @@ def pipeline_mongo():
         @task
         def remove_unnecessary_characters(path: str):
             path = '/opt/airflow/include/cleaned_reviews.csv'
-            try:
-                df = pd.read_csv(path, dtype=dtypes_string_dates) #type:ignore
-            except UnicodeDecodeError:
-                df = pd.read_csv(path, dtype=dtypes_string_dates, encoding='latin-1') #type:ignore
-
+            df = pd.read_csv(path, dtype=dtypes_string_dates) #type:ignore
+                
             pattern_to_replace = rf"[^a-zA-Z0-9\s{re.escape(string.punctuation)}]"
 
             df = df.replace(to_replace=pattern_to_replace, value='',regex=True)
@@ -78,11 +70,32 @@ def pipeline_mongo():
         
             return path
 
+        @task
+        def sort_data(path: str):
+            path = '/opt/airflow/include/cleaned_reviews.csv'
+            dtypes_proper_dates = {
+                'reviewId': "string", 
+                'userName': "string", 
+                'userImage': "string", 
+                'content': "string", 
+                'score': "Int64", 
+                'thumbsUpCount': "string",
+                'reviewCreatedVersion': "string", 
+                'replyContent': "string"
+            }
+            date_columns = ['at', 'replaceAt']
 
-        remove_unnecessary_characters(null_replace()) #type:ignore
+            df = pd.read_csv(path, dtype=dtypes_string_dates, date_format=date_columns) #type:ignore
+            
+            df.sort_values(by='at', ascending=True, inplace=True)
+
+            print(df.head(5))
+
+            df.to_csv(path, index=False)
+            
+        sort_data(remove_unnecessary_characters(null_replace())) #type:ignore
  
     wait_for_resource >> check_if_empty() >> [log_empty_file(), processing_group()] #type:ignore
-
 
 
 pipeline_mongo()
