@@ -12,7 +12,7 @@ import string
 )
 def pipeline_mongo():
 
-    wait_for_resource = FileSensor(fs_conn_id='fs_default', task_id='wait_for_resource', filepath='/opt/include/tiktok_google_play_reviews.csv')
+    wait_for_resource = FileSensor(fs_conn_id='fs_default', task_id='wait_for_resource', filepath='/opt/airflow/include/tiktok_google_play_reviews.csv')
 
     @task.branch
     def check_if_empty():
@@ -29,7 +29,7 @@ def pipeline_mongo():
     @task_group(group_id='processing_group')
     def processing_group():
         #treating dates as strings
-        dtypes_string_dates={'reviewId': "string", 
+        dtypes={'reviewId': "string", 
                 'userName': "string", 
                 'userImage': "string", 
                 'content': "string", 
@@ -37,16 +37,18 @@ def pipeline_mongo():
                 'thumbsUpCount': "string",
                 'reviewCreatedVersion': "string", 
                 'replyContent': "string",
-                'at': "string",
-                'repliedAt':"string"
                 }
+
+        date_cols = ['at', 'repliedAt']
 
         @task
         def null_replace():
-            # date_cols = ['at', 'repliedAt']
-            df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes_string_dates) #type:ignore
+            df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes, parse_dates=date_cols) #type:ignore
 
-            df.fillna('-', inplace=True)
+            string_cols = df.select_dtypes(include=['string', 'object']).columns
+            df[string_cols] = df[string_cols].fillna('-')
+
+            # df.fillna('-', inplace=True)
 
             print(df.head(5))
 
@@ -58,7 +60,7 @@ def pipeline_mongo():
         @task
         def remove_unnecessary_characters(path: str):
             path = '/opt/airflow/include/cleaned_reviews.csv'
-            df = pd.read_csv(path, dtype=dtypes_string_dates) #type:ignore
+            df = pd.read_csv(path, dtype=dtypes, parse_dates=date_cols) #type:ignore
                 
             pattern_to_replace = rf"[^a-zA-Z0-9\s{re.escape(string.punctuation)}]"
 
@@ -73,19 +75,7 @@ def pipeline_mongo():
         @task(outlets=[Asset("cleaned_reviews_asset")])
         def sort_data(path: str):
             path = '/opt/airflow/include/cleaned_reviews.csv'
-            dtypes_proper_dates = {
-                'reviewId': "string", 
-                'userName': "string", 
-                'userImage': "string", 
-                'content': "string", 
-                'score': "Int64", 
-                'thumbsUpCount': "string",
-                'reviewCreatedVersion': "string", 
-                'replyContent': "string"
-            }
-            date_columns = ['at', 'replaceAt']
-
-            df = pd.read_csv(path, dtype=dtypes_string_dates, na_values='-', date_format=date_columns) #type:ignore
+            df = pd.read_csv(path, dtype=dtypes, parse_dates=date_cols) #type:ignore
             
             df.sort_values(by='at', ascending=True, inplace=True)
 
