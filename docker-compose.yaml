@@ -77,6 +77,7 @@ x-airflow-common:
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     AIRFLOW_CONN_FS_DEFAULT: '{"conn_type": "fs", "extra": {"path": "/opt/airflow/include"}}'
+    AIRFLOW_CONN_MONGO_DEFAULT: 'mongodb://mongodb:27017/'
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -92,6 +93,14 @@ x-airflow-common:
       condition: service_healthy
 
 services:
+  mongodb:
+    image: mongodb/mongodb-community-server:8.0-ubi8
+    ports:
+      - "27017:27017"
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data/db
   postgres:
     image: postgres:16
     environment:

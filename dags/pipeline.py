@@ -1,4 +1,4 @@
-from airflow.sdk import dag, task, task_group
+from airflow.sdk import dag, task, task_group, Asset
 from airflow.providers.standard.sensors.filesystem import FileSensor
 from datetime import datetime
 import pandas as pd
@@ -70,7 +70,7 @@ def pipeline_mongo():
         
             return path
 
-        @task
+        @task(outlets=[Asset("cleaned_reviews_asset")])
         def sort_data(path: str):
             path = '/opt/airflow/include/cleaned_reviews.csv'
             dtypes_proper_dates = {
@@ -85,7 +85,7 @@ def pipeline_mongo():
             }
             date_columns = ['at', 'replaceAt']
 
-            df = pd.read_csv(path, dtype=dtypes_string_dates, date_format=date_columns) #type:ignore
+            df = pd.read_csv(path, dtype=dtypes_string_dates, na_values='-', date_format=date_columns) #type:ignore
             
             df.sort_values(by='at', ascending=True, inplace=True)
 
@@ -94,7 +94,8 @@ def pipeline_mongo():
             df.to_csv(path, index=False)
             
         sort_data(remove_unnecessary_characters(null_replace())) #type:ignore
- 
+
+
     wait_for_resource >> check_if_empty() >> [log_empty_file(), processing_group()] #type:ignore
 
 
