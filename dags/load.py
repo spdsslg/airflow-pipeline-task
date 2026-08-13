@@ -18,7 +18,7 @@ def load_data_mongo():
             for col in date_columns:
                 df[col] = df[col].astype(object).replace({pd.NaT: None}) #type:ignore
 
-            print(df['repliedAt'].isna().sum())
+            print(f"Number of null values in content col.: {df['content'].isna().sum()}") #for debugging purposes
 
             db['tiktok_reviews_db'].insert_many(df.to_dict('records'))
 
