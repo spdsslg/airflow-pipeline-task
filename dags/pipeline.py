@@ -28,7 +28,6 @@ def pipeline_mongo():
     
     @task_group(group_id='processing_group')
     def processing_group():
-        #treating dates as strings
         dtypes={'reviewId': "string", 
                 'userName': "string", 
                 'userImage': "string", 
@@ -42,8 +41,9 @@ def pipeline_mongo():
         date_cols = ['at', 'repliedAt']
 
         @task
-        def null_replace():
-            df = pd.read_csv('/opt/airflow/include/tiktok_google_play_reviews.csv', dtype=dtypes, parse_dates=date_cols) #type:ignore
+        def null_replace(path: str):
+            pd.set_option('display.max_columns', None)
+            df = pd.read_csv(path, dtype=dtypes, parse_dates=date_cols) #type:ignore
 
             string_cols = df.select_dtypes(include=['string', 'object']).columns
             df[string_cols] = df[string_cols].fillna('-')
@@ -52,29 +52,29 @@ def pipeline_mongo():
 
             print(df.head(5))
 
-            out_file = '/opt/airflow/include/cleaned_reviews.csv'
-            df.to_csv(out_file, index=False)
+            df.to_csv(path, index=False)
 
-            return out_file
+            return path
 
         @task
-        def remove_unnecessary_characters(path: str):
-            path = '/opt/airflow/include/cleaned_reviews.csv'
-            df = pd.read_csv(path, dtype=dtypes, parse_dates=date_cols) #type:ignore
+        def remove_unnecessary_characters():
+            raw_file_path = '/opt/airflow/include/tiktok_google_play_reviews.csv'
+            df = pd.read_csv(raw_file_path, dtype=dtypes, parse_dates=date_cols) #type:ignore
                 
-            pattern_to_replace = rf"[^a-zA-Z0-9\s{re.escape(string.punctuation)}]"
+            pattern_to_replace = rf"[^\w\s{re.escape(string.punctuation)}]"
 
             df = df.replace(to_replace=pattern_to_replace, value='',regex=True)
 
             print(df.head(5))
 
-            df.to_csv(path, index=False)
+            out_file = '/opt/airflow/include/cleaned_reviews.csv'
+            df.to_csv(out_file, index=False)
         
-            return path
+            return out_file
 
         @task(outlets=[Asset("cleaned_reviews_asset")])
         def sort_data(path: str):
-            path = '/opt/airflow/include/cleaned_reviews.csv'
+            # path = '/opt/airflow/include/cleaned_reviews.csv'
             df = pd.read_csv(path, dtype=dtypes, parse_dates=date_cols) #type:ignore
             
             df.sort_values(by='at', ascending=True, inplace=True)
@@ -83,7 +83,7 @@ def pipeline_mongo():
 
             df.to_csv(path, index=False)
             
-        sort_data(remove_unnecessary_characters(null_replace())) #type:ignore
+        sort_data(null_replace(remove_unnecessary_characters())) #type:ignore
 
 
     wait_for_resource >> check_if_empty() >> [log_empty_file(), processing_group()] #type:ignore

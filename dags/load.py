@@ -11,12 +11,16 @@ def load_data_mongo():
         client = hook.get_conn()
         db = client['reviewsdb']
 
-        date_columns = ['at', 'repliedAt']
-        df = pd.read_csv('/opt/airflow/include/cleaned_reviews.csv', parse_dates=date_columns) #type:ignore
-        for col in date_columns:
-            df[col] = df[col].astype(object).replace({pd.NaT: None}) #type:ignore
-            
-        db['tiktok_reviews_db'].insert_many(df.to_dict('records'))
+        collection_exists = 'tiktok_reviews_db' in db.list_collection_names()
+        if(not collection_exists):
+            date_columns = ['at', 'repliedAt']
+            df = pd.read_csv('/opt/airflow/include/cleaned_reviews.csv', parse_dates=date_columns) #type:ignore
+            for col in date_columns:
+                df[col] = df[col].astype(object).replace({pd.NaT: None}) #type:ignore
+
+            print(df['repliedAt'].isna().sum())
+
+            db['tiktok_reviews_db'].insert_many(df.to_dict('records'))
 
     load_dataframe()
 
